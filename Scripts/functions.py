@@ -1,21 +1,11 @@
 import os
 import sys
 import re
-import subprocess
-
-import os
-import sys
-import re
 import random
-import numpy as np
-#from scipy.spatial.distance import pdist, squareform
-import subprocess as sub
 
 from Bio import SeqIO
 from Bio.SeqUtils import ProtParam
-import os
-import sys
-import re
+
 import io
 import getopt
 # -----------------------------------------------------------------------------------------------------------
@@ -28,18 +18,18 @@ def usage():
         
         Input:    None.
     
-        Return:   Print options for running EffectorP.       
+        Return:   Print options for running ApoplastP.       
     """
     print '''
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# EffectorP :: predicting fungal effector proteins from secretomes using machine learning
-# EffectorP 1.0 (July 2015); http://effectorp.csiro.au/
-# Copyright (C) 2015-2016 Jana Sperschneider, CSIRO.
+# ApoplastP :: prediction of effectors and plant proteins in the apoplast using machine learning
+# ApoplastP 1.0 (July 2017); http://apoplastp.csiro.au/
+# Copyright (C) 2017-2018 Jana Sperschneider, CSIRO.
 # Freely distributed under the GNU General Public License (GPLv3).
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     '''
-    print "Usage for EffectorP: ", 
-    print "python EffectorP.py [-options] -i <input_file>"
+    print "Usage for ApoplastP: ", 
+    print "python ApoplastP.py [-options] -i <input_file>"
     print 
     print "where basic options are:"
     print "-h : show brief help on version and usage" 
@@ -49,7 +39,8 @@ def usage():
     print
     print "options directing output:"
     print "-o <f> : direct output to file <f>, not stdout"
-    print "-E <f> : save predicted effectors to FASTA file <f>"        
+    print "-A <f> : save predicted apoplastic proteins to FASTA file <f>"        
+    print "-N <f> : save predicted non-apoplastic proteins to FASTA file <f>"        
     print
     print "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"
     print
@@ -67,7 +58,7 @@ def scan_arguments(commandline):
         Return:   Parsed options.
     """
     try:
-        opts, args = getopt.getopt(commandline, "hso:E:i:", ["help"])        
+        opts, args = getopt.getopt(commandline, "hso:A:N:i:", ["help"])        
     except getopt.GetoptError as err:
         # print help information and exit:
         print str(err) # will print something like "option -a not recognized"
@@ -77,31 +68,42 @@ def scan_arguments(commandline):
     FASTA_FILE = None
     short_format = False
     output_file = None
-    effector_output = None
+    apoplast_output = None
+    nonapoplast_output = None
 
-    i_count, o_count, E_count, P_count = 0, 0, 0, 0
+    i_count, o_count, A_count, N_count = 0, 0, 0, 0
    
     for opt, arg in opts:
+
         if opt in ("-o"):
             output_file = arg
             o_count += 1
+
         elif opt in ("-s"):
             short_format = True
+
         elif opt in ("-i"):
             FASTA_FILE = arg
             i_count += 1
-        elif opt in ("-E"):
-            effector_output = arg
-            E_count += 1
+
+        elif opt in ("-A"):
+            apoplast_output = arg
+            A_count += 1
+
+        elif opt in ("-N"):
+            nonapoplast_output = arg
+            N_count += 1
+
         elif opt in ("-h", "--help"):
             usage()
+
         else:
             assert False, "unhandled option"
 
-    if i_count > 1 or o_count > 1 or E_count > 1:
+    if i_count > 1 or o_count > 1 or A_count > 1 or N_count > 1:
        usage()
 
-    return FASTA_FILE, short_format, output_file, effector_output
+    return FASTA_FILE, short_format, output_file, apoplast_output, nonapoplast_output
 # -----------------------------------------------------------------------------------------------------------
 # Taken from http://web.expasy.org/protscale/pscale/Hphob.Doolittle.html
 GRAVY_DIC = {
@@ -127,8 +129,8 @@ GRAVY_DIC = {
 'V':  4.2}
 # -----------------------------------------------------------------------------------------------------------
 def GRAVY(sequence):
-    # The GRAVY value for a peptide or protein is calculated as the sum of hydropathy values of all the amino acids, 
-    # divided by the number of residues in the sequence. 
+    # The GRAVY value for a peptide or protein is calculated as the sum of hydropathy values 
+    # of all the amino acids, divided by the number of residues in the sequence. 
 
     gravy = 0.0
     for aa in sequence:
@@ -139,7 +141,7 @@ def GRAVY(sequence):
 
     return gravy
 # -----------------------------------------------------------------------------------------------------------
-ARFF_APOPLAST_HEADER = '''@RELATION effectors
+ARFF_HEADER = '''@RELATION effectors
 @ATTRIBUTE Charge NUMERIC
 @ATTRIBUTE Isoelectric NUMERIC
 @ATTRIBUTE Tiny NUMERIC
@@ -178,81 +180,6 @@ ARFF_APOPLAST_HEADER = '''@RELATION effectors
 @ATTRIBUTE class {APOPLAST,NON_APOPLAST}
 @DATA
 '''
-#@ATTRIBUTE MW NUMERIC
-# -----------------------------------------------------------------------------------------------------------
-def write_FASTA(f_output, IDENTIFIERS, SEQUENCES):
-
-    f = open(f_output, 'w')
-
-    for ident, seq in zip(IDENTIFIERS, SEQUENCES):
-        f.writelines(ident)
-        f.writelines(seq + '\n')
-    f.close()
-
-    return
-# -----------------------------------------------------------------------------------------------------------
-def featurevector_apoplast(DATASET_POSITIVE, DATASET_NEGATIVE, pepstats_dic_positive, pepstats_dic_negative):
-
-    X = []
-
-    for TARGET_ID, sequence in DATASET_POSITIVE:
-        TARGET_ID = TARGET_ID.replace('>','')
-        TARGET_ID = TARGET_ID.strip()        
-                    
-        molecular_weight, charge, isoelectric, tiny, small, aliphatic, aromatic, non_polar, polar, charged, basic, acidic, amino_acid_frequencies, length, dayhoff = pepstats_dic_positive[TARGET_ID]
-
-        prot = ProtParam.ProteinAnalysis(sequence.replace('*',''))                
-
-        #feature_vector = [charge, isoelectric] + [tiny, small, aliphatic, aromatic, non_polar, polar, charged, basic, acidic] + amino_acid_frequencies + [GRAVY(sequence)] + [prot.aromaticity(), prot.instability_index(), prot.molecular_weight()] + [sequence.count('C')] 
-
-        feature_vector = [charge, isoelectric] + [tiny, small, aliphatic, aromatic, non_polar, polar, charged, basic, acidic] + amino_acid_frequencies + [GRAVY(sequence)] + [prot.aromaticity(), prot.instability_index()] + [sequence.count('C')] 
-
-        X.append(feature_vector)
-
-    print '-------------'
-    for TARGET_ID, sequence in DATASET_NEGATIVE:
-        TARGET_ID = TARGET_ID.replace('>','')
-        TARGET_ID = TARGET_ID.strip()        
-
-        molecular_weight, charge, isoelectric, tiny, small, aliphatic, aromatic, non_polar, polar, charged, basic, acidic, amino_acid_frequencies, length, dayhoff = pepstats_dic_negative[TARGET_ID]
-
-        prot = ProtParam.ProteinAnalysis(sequence.replace('*',''))            
-
-        #feature_vector = [charge, isoelectric] + [tiny, small, aliphatic, aromatic, non_polar, polar, charged, basic, acidic] + amino_acid_frequencies + [GRAVY(sequence)] + [prot.aromaticity(), prot.instability_index(), prot.molecular_weight()] + [sequence.count('C')] 
-
-        feature_vector = [charge, isoelectric] + [tiny, small, aliphatic, aromatic, non_polar, polar, charged, basic, acidic] + amino_acid_frequencies + [GRAVY(sequence)] + [prot.aromaticity(), prot.instability_index()] + [sequence.count('C')] 
-
-        X.append(feature_vector)
-
-    X = np.array(X)
-
-    return X
-# -----------------------------------------------------------------------------------------------------------
-def evaluate_performance(FILENAME):
-
-    f = open(FILENAME, 'r')
-    content = f.readlines()    
-    f.close()
-
-    #TP Rate  FP Rate  Precision  Recall   F-Measure  MCC      ROC Area  PRC Area  Class
-    #0.712    0.058    0.805      0.712    0.756      0.683    0.940     0.845     APOPLAST
-    sensitivity, specificity, kappa, Fmeasure, MCC, AUC = None, None, None, None, None, None
-
-    for index, line in enumerate(content):
-        if '=== Stratified cross-validation ===' in line:
-            for followingindex, followingline in enumerate(content[index:]):
-   	        if 'Kappa statistic' in followingline:
-                    kappa = float(followingline.split('Kappa statistic')[1])
-                if '=== Detailed Accuracy By Class ===' in followingline:     
-                    line1 = content[index + followingindex+3]
-                    line2 = content[index + followingindex+4]             
-                    sensitivity = float(line1.split()[0])
-                    specificity = float(line2.split()[0])
-                    Fmeasure = float(line1.split()[4])            
-                    MCC = float(line1.split()[5])                    
-                    AUC = float(line1.split()[6])                    
-                    
-    return sensitivity, specificity, kappa, Fmeasure, MCC, AUC
 # -----------------------------------------------------------------------------------------------------------
 def parse_weka_output(file_input, ORIGINAL_IDENTIFIERS, SEQUENCES):
     """ Function: parse_weka_output()
@@ -271,8 +198,6 @@ def parse_weka_output(file_input, ORIGINAL_IDENTIFIERS, SEQUENCES):
 
         content = f.readlines()        
 
-        #content_start = content.index('    inst#     actual  predicted error prediction (Charge,Isoelectric,Tiny,Small,Aliphatic,Aromatic,Nonpolar,Polar,Charged,Basic,Acidic,A,C,D,E,F,G,H,I,K,L,M,N,P,Q,R,S,T,V,W,Y,Gravy,Aromaticity,Instability,MW,CysteineCount)\n')   
-
         content_start = content.index('    inst#     actual  predicted error prediction (Charge,Isoelectric,Tiny,Small,Aliphatic,Aromatic,Nonpolar,Polar,Charged,Basic,Acidic,A,C,D,E,F,G,H,I,K,L,M,N,P,Q,R,S,T,V,W,Y,Gravy,Aromaticity,Instability,CysteineCount)\n')  
         content = content[content_start + 1:]
 
@@ -289,35 +214,17 @@ def parse_weka_output(file_input, ORIGINAL_IDENTIFIERS, SEQUENCES):
                 if 'NON_APOP' in prediction:                               
                     noneffector = identifier.strip()
                     noneffector = noneffector.replace('>', '')  
-                    predictions.append((noneffector, 'Non-apoplastic', prob, sequence))
-                    not_predicted_apoplast.append((noneffector, prob, sequence))
+                    predictions.append((noneffector, 'Non-apoplastic', prob, sequence))                    
                 else:                    
                     effector = identifier.strip()
                     effector = effector.replace('>', '')            
-                    #predictions.append((effector, 'Apoplastic', prob, sequence))
-                    #predicted_apoplast.append((effector, prob, sequence))
                     if float(prob) >= 0.55:                                   
                         predictions.append((effector, 'Apoplastic', prob, sequence))
                         predicted_apoplast.append((effector, prob, sequence))
                     else:
-                        predictions.append((effector, 'Weakly apoplastic', prob, sequence))
-                        not_predicted_apoplast.append((effector, prob, sequence))
+                        predictions.append((effector, 'Non-apoplastic', prob, sequence))
 
-    return predicted_apoplast, not_predicted_apoplast, predictions
-# -----------------------------------------------------------------------------------------------------------
-def pepstats_aas(DATASET, TMP_PATH):
- 
-    f = open(TMP_PATH + 'temp_pepstats.fasta', 'w')
-
-    for ident, seq in DATASET:
-        f.writelines('>' + ident.replace('>','') + '\n')
-        f.writelines(seq + '\n')
-    f.close()
-
-    os.popen('pepstats -sequence ' + TMP_PATH + 'temp_pepstats.fasta -outfile ' + TMP_PATH + 'temp_pepstats.pepstats')
-    pepstats_dic_aas = pepstats(DATASET, TMP_PATH + 'temp_pepstats.pepstats')
-
-    return pepstats_dic_aas
+    return predicted_apoplast, predictions
 # -----------------------------------------------------------------------------------------------------------
 def write_FASTA_short_ids(f_output, ORIGINAL_IDENTIFIERS, ORIGINAL_SEQUENCES):
     """ Function: write_FASTA_short_ids()
@@ -348,114 +255,107 @@ def write_FASTA_short_ids(f_output, ORIGINAL_IDENTIFIERS, ORIGINAL_SEQUENCES):
 
     return SHORT_IDENTIFIERS
 # -----------------------------------------------------------------------------------------------------------
-def pepstats(DATASET, FILE):
-   
-    pepstats_dic = {}    
+def pepstats(SHORT_IDENTIFIERS, SEQUENCES, pepstats_file):
+    """ Function: pepstats()
 
-    pepstats_file = FILE
-
-    f = open(pepstats_file, 'r')
-    content = f.readlines()
-    f.close()
+        Purpose:  Given a set that contains the list of identifiers and 
+                  the corresponding list of sequences, scan the given 
+                  pepstats result file to extract protein properties.
+              
+        Input:    Set that contains the list of identifiers and 
+                  the corresponding list of sequences and peptstats 
+                  result file. 
     
-    for start, line in enumerate(content):
-        if 'PEPSTATS of ' in line and ' from 1 to ' in line:		
-            TARGET_ID = line.split('PEPSTATS of ')[1]
-            TARGET_ID = TARGET_ID.split(' from')[0].strip()
-            length = line.split(' to ')[1].strip()
-            amino_acid_frequencies, dayhoff = [], []
-            aminoacids_line = content[start + 10:start + 36]
+        Return:   Dictionary of protein properties for each protein in the 
+                  set.
+    """
 
-            for item in aminoacids_line:	
-                # Residue		Number		Mole%		DayhoffStat	    
-                if item.split('\t')[0] != 'B = Asx' and item.split('\t')[0] != 'J = ---' and item.split('\t')[0] != 'O = ---' and item.split('\t')[0] != 'U = ---' and item.split('\t')[0] != 'Z = Glx' and item.split('\t')[0] != 'X = Xaa':
-                    amino_acid_frequencies.append(float(item.split('\t')[4]))
-                    dayhoff.append(float(item.split('\t')[6]))			
-            # Extract molecular weight
-            molecular_weight_line = content[start + 2:start + 3]
-            molecular_weight = float(re.findall("\d+.\d+", str(molecular_weight_line))[0])
-            # Extract charge
-            charge_line = content[start + 3:start + 4]
-            charge = float(re.findall("[-+]?\d+.\d+", str(charge_line))[1])
+    pepstats_dic = {}
 
-            # Extract isoelectric point
-            isoelectric_line = content[start + 4:start + 5]
-            isoelectric = float(re.findall("\d+.\d+", str(isoelectric_line))[0])
-
-		# Watch out, in the pepstats software, if isoelectric point == None, an 
-                # extra line will be introduced
-            start_aas = content[start:].index('Property\tResidues\t\tNumber\t\tMole%\n')
-            perline = content[start + start_aas + 1:start + start_aas + 10]
-
-            tiny = float(re.findall("\d+.\d+", str(perline[0]))[-1])
-            small = float(re.findall("\d+.\d+", str(perline[1]))[-1])
-            aliphatic = float(re.findall("\d+.\d+", str(perline[2]))[-1])
-            aromatic = float(re.findall("\d+.\d+", str(perline[3]))[-1])
-            non_polar = float(re.findall("\d+.\d+", str(perline[4]))[-1])
-            polar = float(re.findall("\d+.\d+", str(perline[5]))[-1])
-            charged = float(re.findall("\d+.\d+", str(perline[6]))[-1])
-            basic = float(re.findall("\d+.\d+", str(perline[7]))[-1])
-            acidic = float(re.findall("\d+.\d+", str(perline[8]))[-1])
-                    
-            # Store values in dictionary
-            pepstats_dic[TARGET_ID] = molecular_weight, charge, isoelectric, tiny, small, aliphatic, aromatic, non_polar, polar, charged, basic, acidic, amino_acid_frequencies, length, dayhoff
-                
-    return pepstats_dic
-
-def pepstats_old(DATASET, FILE):
-   
-    pepstats_dic = {}    
-
-    pepstats_file = FILE
-
-    f = open(pepstats_file, 'r')
-    content = f.readlines()
-    f.close()
-    
-    for (TARGET_ID, sequence) in DATASET:
-        TARGET_ID = TARGET_ID.split(';')[0]
-        TARGET_ID = TARGET_ID.replace('>','')
-        TARGET_ID = TARGET_ID.strip()
+    with open(pepstats_file) as f: 
+        content = f.readlines()
         for start, line in enumerate(content):
-            if 'PEPSTATS of ' + TARGET_ID + ' from 1 to ' in line:		
-                length = float(len(sequence.strip()))
-                amino_acid_frequencies, dayhoff = [], []
-                aminoacids_line = content[start + 10:start + 36]
+            if 'PEPSTATS of ' in line:
+                TARGET_ID = line.split('PEPSTATS of ')[1]
+                TARGET_ID = TARGET_ID.split('from 1 to')[0]
+                TARGET_ID = TARGET_ID.strip()
+                sequence = None
 
-                for item in aminoacids_line:	
-                    # Residue		Number		Mole%		DayhoffStat	    
-                    if item.split('\t')[0] != 'B = Asx' and item.split('\t')[0] != 'J = ---' and item.split('\t')[0] != 'O = ---' and item.split('\t')[0] != 'U = ---' and item.split('\t')[0] != 'Z = Glx' and item.split('\t')[0] != 'X = Xaa':
-                        amino_acid_frequencies.append(float(item.split('\t')[4]))
-                        dayhoff.append(float(item.split('\t')[6]))			
-                # Extract molecular weight
-                molecular_weight_line = content[start + 2:start + 3]
-                molecular_weight = float(re.findall("\d+.\d+", str(molecular_weight_line))[0])
-                # Extract charge
-                charge_line = content[start + 3:start + 4]
-                charge = float(re.findall("[-+]?\d+.\d+", str(charge_line))[1])
+                for (identifier, seq) in zip(SHORT_IDENTIFIERS, SEQUENCES):
+                    if identifier.replace('>', '') == TARGET_ID:
+                        sequence = seq.strip()
 
-                # Extract isoelectric point
-                isoelectric_line = content[start + 4:start + 5]
-                isoelectric = float(re.findall("\d+.\d+", str(isoelectric_line))[0])
+                if sequence:
+                    length = float(len(sequence))
+                    # Amino acid frequencies in the sequence
+                    amino_acid_frequencies = []
+                    amino_acid_frequencies.append(100.0*sequence.count('A')/length)
+                    amino_acid_frequencies.append(100.0*sequence.count('C')/length)
+                    amino_acid_frequencies.append(100.0*sequence.count('D')/length)
+                    amino_acid_frequencies.append(100.0*sequence.count('E')/length)
+                    amino_acid_frequencies.append(100.0*sequence.count('F')/length)
+                    amino_acid_frequencies.append(100.0*sequence.count('G')/length)
+                    amino_acid_frequencies.append(100.0*sequence.count('H')/length)
+                    amino_acid_frequencies.append(100.0*sequence.count('I')/length)
+                    amino_acid_frequencies.append(100.0*sequence.count('K')/length)
+                    amino_acid_frequencies.append(100.0*sequence.count('L')/length)
+                    amino_acid_frequencies.append(100.0*sequence.count('M')/length)
+                    amino_acid_frequencies.append(100.0*sequence.count('N')/length)
+                    amino_acid_frequencies.append(100.0*sequence.count('P')/length)
+                    amino_acid_frequencies.append(100.0*sequence.count('Q')/length)
+                    amino_acid_frequencies.append(100.0*sequence.count('R')/length)
+                    amino_acid_frequencies.append(100.0*sequence.count('S')/length)
+                    amino_acid_frequencies.append(100.0*sequence.count('T')/length)
+                    amino_acid_frequencies.append(100.0*sequence.count('V')/length)
+                    amino_acid_frequencies.append(100.0*sequence.count('W')/length)
+                    amino_acid_frequencies.append(100.0*sequence.count('Y')/length)
+                    # Extract molecular weight
+                    mwline = content[start + 2:start + 3]
+                    molecular_weight = float(re.findall("\d+.\d+", str(mwline))[0])
+                    # Extract charge
+                    charge_line = content[start + 3:start + 4]
+                    charge = float(re.findall("[-+]?\d+.\d+", str(charge_line))[1])
+                    # Extract amino acid class frequencies
 
-		# Watch out, in the pepstats software, if isoelectric point == None, an 
-                # extra line will be introduced
-                start_aas = content[start:].index('Property\tResidues\t\tNumber\t\tMole%\n')
-                perline = content[start + start_aas + 1:start + start_aas + 10]
+		            # Watch out, in the pepstats software, if isoelectric point == None, an 
+                    # extra line will be introduced
+                    isoelectric_line = content[start + 4:start + 5]
+                    # In rare cases the isoelectric point calculation returns 'None'
+                    try:
+                        isoelectric = float(re.findall("\d+.\d+", str(isoelectric_line))[0])
+                    except: 
+                        isoelectric = 0.0
 
-                tiny = float(re.findall("\d+.\d+", str(perline[0]))[-1])
-                small = float(re.findall("\d+.\d+", str(perline[1]))[-1])
-                aliphatic = float(re.findall("\d+.\d+", str(perline[2]))[-1])
-                aromatic = float(re.findall("\d+.\d+", str(perline[3]))[-1])
-                non_polar = float(re.findall("\d+.\d+", str(perline[4]))[-1])
-                polar = float(re.findall("\d+.\d+", str(perline[5]))[-1])
-                charged = float(re.findall("\d+.\d+", str(perline[6]))[-1])
-                basic = float(re.findall("\d+.\d+", str(perline[7]))[-1])
-                acidic = float(re.findall("\d+.\d+", str(perline[8]))[-1])
-                    
-                # Store values in dictionary
-                pepstats_dic[TARGET_ID] = molecular_weight, charge, isoelectric, tiny, small, aliphatic, aromatic, non_polar, polar, charged, basic, acidic, amino_acid_frequencies, length, dayhoff
-                
+                    start_aas = content[start:].index('Property\tResidues\t\tNumber\t\tMole%\n')
+                    perline = content[start + start_aas + 1:start + start_aas + 10]
+
+                    tiny = float(re.findall("\d+.\d+", str(perline[0]))[-1])
+                    small = float(re.findall("\d+.\d+", str(perline[1]))[-1])
+                    aliphatic = float(re.findall("\d+.\d+", str(perline[2]))[-1])
+                    aromatic = float(re.findall("\d+.\d+", str(perline[3]))[-1])
+                    non_polar = float(re.findall("\d+.\d+", str(perline[4]))[-1])
+                    polar = float(re.findall("\d+.\d+", str(perline[5]))[-1])
+                    charged = float(re.findall("\d+.\d+", str(perline[6]))[-1])
+                    basic = float(re.findall("\d+.\d+", str(perline[7]))[-1])
+                    acidic = float(re.findall("\d+.\d+", str(perline[8]))[-1])
+                    amino_acid_classes = []
+                    amino_acid_classes.append(tiny)
+                    amino_acid_classes.append(small)
+                    amino_acid_classes.append(aliphatic)
+                    amino_acid_classes.append(aromatic)
+                    amino_acid_classes.append(non_polar)
+                    amino_acid_classes.append(polar)
+                    amino_acid_classes.append(charged)
+                    amino_acid_classes.append(basic)
+                    amino_acid_classes.append(acidic)
+                    # Store values in dictionary
+                    pepstats_dic[TARGET_ID] = molecular_weight, charge, isoelectric, amino_acid_classes, amino_acid_frequencies, length
+
+                else:
+                    print 'There was an error scanning the pepstats file.'
+                    print 'Could not find corresponding sequence for identifier', TARGET_ID
+                    sys.exit()
+
     return pepstats_dic
 # -----------------------------------------------------------------------------------------------------------
 def get_seqs_ids_fasta(FASTA_FILE):
@@ -492,41 +392,7 @@ def get_seqs_ids_fasta(FASTA_FILE):
 
     return identifiers, sequences
 # -----------------------------------------------------------------------------------------------------------
-def seq_homology_testset(identifier, sequence, TESTSET):
-
-    f = open('seq_test.fasta', 'w')
-    f.writelines(identifier)
-    f.writelines(sequence + '\n')
-    f.close()
-
-    f = open('testset.fasta', 'w')
-    for ident, seq in TESTSET:         
-        f.writelines(ident)
-        f.writelines(seq + '\n')
-    f.close()
-
-    #print "Scan with phmmer"
-    os.popen('phmmer -E 0.00001 --tblout phmmer_seq_test.temp seq_test.fasta testset.fasta')
-    f = open('phmmer_seq_test.temp', 'r')
-    content = f.readlines()
-    f.close()
-
-    homologs = []
-    HOMOLOG_IN_SAMPLE = False
-    for line in content:   
-        if not '#' in line:        
-            homolog = line.split()[0]
-            homolog = '>' + homolog + '\n'
-            homologs.append(homolog)
-            if homologs and len(homologs) > 1:
-                HOMOLOG_IN_SAMPLE = True
-    
-    if not HOMOLOG_IN_SAMPLE and not (identifier, sequence.replace('*','')) in TESTSET:
-        TESTSET.append((identifier, sequence.replace('*','')))
-
-    return TESTSET
-# -----------------------------------------------------------------------------------------------------------
-def filterX(IDENTIFIERS, SEQUENCES):
+def filterX(SEQUENCES):
     # Replace ambiguous amino acids because ProtParam can't deal with them later on 
     # B = Asx = Aspartic acid or Asparagine
     # Z = Glx = Glutamic acid or Glutamine
@@ -536,12 +402,13 @@ def filterX(IDENTIFIERS, SEQUENCES):
     replaceU = ['C']
     replaceX = ['A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G', 'H', 'I', 'L', 'K', 'M', 'F', 'P', 'S', 'T', 'W', 'Y', 'V']
 
-    IDENTIFIERS_FILTERED, SEQUENCES_FILTERED = [], []
+    random.seed(9001)   
+
+    SEQUENCES_FILTERED = []
     
-    for identifier, sequence in zip(IDENTIFIERS, SEQUENCES):
+    for sequence in SEQUENCES:
 
         if 'B' in sequence or 'Z' in sequence or 'X' in sequence or 'U' in sequence:
-            IDENTIFIERS_FILTERED.append(identifier)
 
             sequence_replaced = []
             for char in sequence:
@@ -554,51 +421,42 @@ def filterX(IDENTIFIERS, SEQUENCES):
 
             SEQUENCES_FILTERED.append(sequence_replaced.replace('*',''))
         else:
-            IDENTIFIERS_FILTERED.append(identifier)
             SEQUENCES_FILTERED.append(sequence.replace('*',''))
 
-    return IDENTIFIERS_FILTERED, SEQUENCES_FILTERED 
+    return SEQUENCES_FILTERED 
 # -----------------------------------------------------------------------------------------------------------
-def apoplast_classifier(pepstats_dic_aas, TARGET_IDs, sequences, TMP_PATH, MODEL):
+def write_weka_input(weka_input, SHORT_IDENTIFIERS, SEQUENCES, pepstats_dic):
+    """ Function: write_weka_input()
 
-    predicted_nucleus, predictions = [], []
-    weka = TMP_PATH + 'apoplast.arff'
-    X = [[] for __ in xrange(len(TARGET_IDs))]
+        Purpose:  Given the query identifiers and pepstats-calculated
+                  protein features, write the input arff file for WEKA. 
+              
+        Input:    WEKA arff file name, query identifiers and pepstats dictionary.                  
+    
+        Return:   None. 
+    """   
+    with open(weka_input, 'w') as f:
+        # Create a list of features for each protein
+        X = [[] for __ in xrange(len(SHORT_IDENTIFIERS))]
 
-    protein_position = 0
-
-    with open(weka, 'w') as f:
-
-        for TARGET_ID, sequence in zip(TARGET_IDs, sequences):
-
+        for protein_position, (TARGET_ID, sequence) in enumerate(zip(SHORT_IDENTIFIERS, SEQUENCES)):
             TARGET_ID = TARGET_ID.replace('>', '')
             TARGET_ID = TARGET_ID.strip()
-            # Create a list of features for each protein
-            
-            molecular_weight, charge, isoelectric, tiny, small, aliphatic, aromatic, non_polar, polar, charged, basic, acidic, amino_acid_frequencies, length, dayhoff = pepstats_dic_aas[TARGET_ID]
+
+            molecular_weight, charge, isoelectric, amino_acid_classes, amino_acid_frequencies, length = pepstats_dic[TARGET_ID]
 
             prot = ProtParam.ProteinAnalysis(sequence.replace('*',''))            
             
-            #X[protein_position] = [charge, isoelectric] + [tiny, small, aliphatic, aromatic, non_polar, polar, charged, basic, acidic] + amino_acid_frequencies + [GRAVY(sequence)] + [prot.aromaticity(), prot.instability_index(), prot.molecular_weight()] + [sequence.count('C')] 
-            X[protein_position] = [charge, isoelectric] + [tiny, small, aliphatic, aromatic, non_polar, polar, charged, basic, acidic] + amino_acid_frequencies + [GRAVY(sequence)] + [prot.aromaticity(), prot.instability_index()] + [sequence.count('C')] 
-
-            protein_position += 1            
-
-        f.writelines(ARFF_APOPLAST_HEADER)
+            X[protein_position] = [charge, isoelectric] + amino_acid_classes + amino_acid_frequencies + [GRAVY(sequence)] + [prot.aromaticity(), prot.instability_index()] + [sequence.count('C')] 
+ 
+        # Write protein feature data to WEKA arff file
+        f.writelines(ARFF_HEADER)
         for index, vector in enumerate(X):
             for feature in vector:
                 f.writelines(str(feature) + ',')
             f.writelines('?\n')
 
-    ParamList = ['java', '-cp', '/home/spe12g/Work_Csiro/Software/weka-3-8-1/weka.jar', 'weka.classifiers.trees.RandomForest',  
-             '-l', MODEL, '-T', weka, '-p', 'first-last']
-
-    with open(TMP_PATH + 'APOPLAST_Predictions.txt', 'wb') as out:
-        Process = subprocess.Popen(ParamList, shell=False, stdout=out)
-        sts = Process.wait()
-
-    return 
-# -----------------------------------------------------------------------------------------------------------
+    return
 # -----------------------------------------------------------------------------------------------------------
 def short_output(predictions):
     """ Function: short_output()
