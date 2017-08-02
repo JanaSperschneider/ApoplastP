@@ -45,7 +45,7 @@ if __name__ == '__main__':
     if not path_exists:
         print
         print "Path to WEKA software does not exist!"
-        print "Check the installation and the given path to the WEKA software %s in EffectorP.py (line 47)."%WEKA_PATH
+        print "Check the installation and the given path to the WEKA software %s in ApoplastP.py (line 40)."%WEKA_PATH
         print
         sys.exit()
     # -----------------------------------------------------------------------------------------------------------
@@ -54,7 +54,7 @@ if __name__ == '__main__':
     if not path_exists:
         print
         print "Path to EMBOSS software does not exist!"
-        print "Check the installation and the given path to the EMBOSS software %s in EffectorP.py (line 48)."%PEPSTATS_PATH
+        print "Check the installation and the given path to the EMBOSS software %s in ApoplastP.py (line 41)."%PEPSTATS_PATH
         print
         sys.exit()
     # -----------------------------------------------------------------------------------------------------------
@@ -106,7 +106,7 @@ if __name__ == '__main__':
     SHORT_IDENTIFIERS = functions.write_FASTA_short_ids(f_output, ORIGINAL_IDENTIFIERS, SEQUENCES)
     # -----------------------------------------------------------------------------------------------------------
     # Call pepstats
-    ProcessExe = 'pepstats'
+    ProcessExe = PEPSTATS_PATH + 'pepstats'
     ParamList = [ProcessExe, '-sequence', f_output, 
               '-outfile', RESULTS_PATH + '.pepstats']
     try:
