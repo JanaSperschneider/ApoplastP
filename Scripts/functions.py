@@ -40,7 +40,8 @@ def usage():
     print "options directing output:"
     print "-o <f> : direct output to file <f>, not stdout"
     print "-A <f> : save predicted apoplastic proteins to FASTA file <f>"        
-    print "-N <f> : save predicted non-apoplastic proteins to FASTA file <f>"        
+    print "-N <f> : save predicted non-apoplastic proteins to FASTA file <f>"
+    print "-p <P> : only output predicted apoplastic proteins with probability >= P (default >= 0.55)"        
     print
     print "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"
     print
@@ -58,7 +59,7 @@ def scan_arguments(commandline):
         Return:   Parsed options.
     """
     try:
-        opts, args = getopt.getopt(commandline, "hso:A:N:i:", ["help"])        
+        opts, args = getopt.getopt(commandline, "hso:A:N:i:p:", ["help"])        
     except getopt.GetoptError as err:
         # print help information and exit:
         print str(err) # will print something like "option -a not recognized"
@@ -70,8 +71,9 @@ def scan_arguments(commandline):
     output_file = None
     apoplast_output = None
     nonapoplast_output = None
+    prob_threshold = 0.55
 
-    i_count, o_count, A_count, N_count = 0, 0, 0, 0
+    i_count, o_count, A_count, N_count, p_count = 0, 0, 0, 0, 0
    
     for opt, arg in opts:
 
@@ -94,16 +96,33 @@ def scan_arguments(commandline):
             nonapoplast_output = arg
             N_count += 1
 
+        elif opt in ("-p"):
+            prob_threshold = arg
+
+            try:
+                prob_threshold = float(prob_threshold)
+            except:
+                print 
+                print 'Error! Provide a number between 0.5 and 1 as probability threshold.'
+                usage()
+
+            if prob_threshold < 0.5 or prob_threshold > 1:
+                print 
+                print 'Error! Provide a number between 0.5 and 1 as probability threshold.'
+                usage()
+
+            p_count += 1
+
         elif opt in ("-h", "--help"):
             usage()
 
         else:
             assert False, "unhandled option"
 
-    if i_count > 1 or o_count > 1 or A_count > 1 or N_count > 1:
+    if i_count > 1 or o_count > 1 or A_count > 1 or N_count > 1 or p_count > 1:
        usage()
 
-    return FASTA_FILE, short_format, output_file, apoplast_output, nonapoplast_output
+    return FASTA_FILE, short_format, output_file, apoplast_output, nonapoplast_output, prob_threshold
 # -----------------------------------------------------------------------------------------------------------
 # Taken from http://web.expasy.org/protscale/pscale/Hphob.Doolittle.html
 GRAVY_DIC = {
@@ -181,7 +200,7 @@ ARFF_HEADER = '''@RELATION effectors
 @DATA
 '''
 # -----------------------------------------------------------------------------------------------------------
-def parse_weka_output(file_input, ORIGINAL_IDENTIFIERS, SEQUENCES):
+def parse_weka_output(file_input, ORIGINAL_IDENTIFIERS, SEQUENCES, prob_threshold):
     """ Function: parse_weka_output()
 
         Purpose:  Given the WEKA output file and the query identifiers and sequences, 
@@ -218,7 +237,7 @@ def parse_weka_output(file_input, ORIGINAL_IDENTIFIERS, SEQUENCES):
                 else:                    
                     effector = identifier.strip()
                     effector = effector.replace('>', '')            
-                    if float(prob) >= 0.55:                                   
+                    if float(prob) >= prob_threshold:                                   
                         predictions.append((effector, 'Apoplastic', prob, sequence))
                         predicted_apoplast.append((effector, prob, sequence))
                     else:

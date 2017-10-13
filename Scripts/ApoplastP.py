@@ -61,7 +61,7 @@ if __name__ == '__main__':
     commandline = sys.argv[1:]
     # -----------------------------------------------------------------------------------------------------------
     if commandline:
-        FASTA_FILE, short_format, output_file,  apoplast_output, nonapoplast_output = functions.scan_arguments(commandline)
+        FASTA_FILE, short_format, output_file,  apoplast_output, nonapoplast_output, prob_threshold = functions.scan_arguments(commandline)
 	# If no FASTA file was provided with the -i option
         if not FASTA_FILE:
             print
@@ -71,7 +71,7 @@ if __name__ == '__main__':
         functions.usage()
     # -----------------------------------------------------------------------------------------------------------
     # Temporary folder name identifier that will be used to store results
-    RESULTS_PATH = tempfile.mkdtemp()
+    RESULTS_PATH = tempfile.mkdtemp() + '/'
     # -----------------------------------------------------------------------------------------------------------
     # Check if FASTA file exists
     try:
@@ -108,7 +108,7 @@ if __name__ == '__main__':
     # Call pepstats
     ProcessExe = PEPSTATS_PATH + 'pepstats'
     ParamList = [ProcessExe, '-sequence', f_output, 
-              '-outfile', RESULTS_PATH + '.pepstats']
+              '-outfile', RESULTS_PATH + 'pepstats.out']
     try:
         Process = subprocess.Popen(ParamList, shell=False)
         sts = Process.wait()
@@ -126,18 +126,18 @@ if __name__ == '__main__':
         sys.exit()
     # -----------------------------------------------------------------------------------------------------------
     # Parse pepstats file
-    pepstats_dic = functions.pepstats(SHORT_IDENTIFIERS, SEQUENCES, RESULTS_PATH + '.pepstats')
+    pepstats_dic = functions.pepstats(SHORT_IDENTIFIERS, SEQUENCES, RESULTS_PATH + 'pepstats.out')
     # -----------------------------------------------------------------------------------------------------------   
     # Write the WEKA arff file for classification of the input FASTA file
-    weka_input = RESULTS_PATH + '.arff'
+    weka_input = RESULTS_PATH + 'weka.arff'
     functions.write_weka_input(weka_input, SHORT_IDENTIFIERS, SEQUENCES, pepstats_dic)
     # -----------------------------------------------------------------------------------------------------------
     # Call WEKA Random Forest model for classification of input FASTA file
     # -----------------------------------------------------------------------------------------------------------
     ParamList = ['java', '-cp', WEKA_PATH, 'weka.classifiers.trees.RandomForest', '-l', SCRIPT_PATH + '/RATIO4_55_MODEL.model',
-             '-T', RESULTS_PATH + '.arff', '-p', 'first-last']
+             '-T', RESULTS_PATH + 'weka.arff', '-p', 'first-last']
 
-    with open(RESULTS_PATH + '/APOPLAST_Predictions.txt', 'wb') as out:
+    with open(RESULTS_PATH + 'APOPLAST_Predictions.txt', 'wb') as out:
         try:
             Process = subprocess.Popen(ParamList, shell=False, stdout=out)
             sts = Process.wait()
@@ -155,8 +155,8 @@ if __name__ == '__main__':
             sys.exit()
     # -----------------------------------------------------------------------------------------------------------
     # Parse the WEKA output file
-    file_input = RESULTS_PATH + '/APOPLAST_Predictions.txt'
-    predicted_apoplast, predictions = functions.parse_weka_output(file_input, ORIGINAL_IDENTIFIERS, SEQUENCES)
+    file_input = RESULTS_PATH + 'APOPLAST_Predictions.txt'
+    predicted_apoplast, predictions = functions.parse_weka_output(file_input, ORIGINAL_IDENTIFIERS, SEQUENCES, prob_threshold)
     # -----------------------------------------------------------------------------------------------------------    
     # If user wants the stdout output directed to a specified file
     if output_file:
@@ -194,7 +194,8 @@ if __name__ == '__main__':
                     f_output.writelines(sequence + '\n')  
     # -----------------------------------------------------------------------------------------------------------
     # Clean up and delete temporary folder that was created
-    shutil.rmtree(RESULTS_PATH)
+    #shutil.rmtree(RESULTS_PATH)
+    print RESULTS_PATH
     # -----------------------------------------------------------------------------------------------------------    
     try:
         sys.stdout.close()
