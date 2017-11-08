@@ -99,6 +99,7 @@ if __name__ == '__main__':
     print '-----------------'
     # -----------------------------------------------------------------------------------------------------------
     # Replace ambiguous amino acids for ProtParam
+    ORIGINAL_SEQUENCES = SEQUENCES
     SEQUENCES = functions.filterX(SEQUENCES)
     # -----------------------------------------------------------------------------------------------------------
     # Write new FASTA file with short identifiers because pepstats can't handle long names
@@ -156,7 +157,7 @@ if __name__ == '__main__':
     # -----------------------------------------------------------------------------------------------------------
     # Parse the WEKA output file
     file_input = RESULTS_PATH + 'APOPLAST_Predictions.txt'
-    predicted_apoplast, predictions = functions.parse_weka_output(file_input, ORIGINAL_IDENTIFIERS, SEQUENCES, prob_threshold)
+    predicted_apoplast, predictions = functions.parse_weka_output(file_input, ORIGINAL_IDENTIFIERS, ORIGINAL_SEQUENCES, prob_threshold)
     # -----------------------------------------------------------------------------------------------------------    
     # If user wants the stdout output directed to a specified file
     if output_file:
@@ -194,8 +195,7 @@ if __name__ == '__main__':
                     f_output.writelines(sequence + '\n')  
     # -----------------------------------------------------------------------------------------------------------
     # Clean up and delete temporary folder that was created
-    #shutil.rmtree(RESULTS_PATH)
-    print RESULTS_PATH
+    shutil.rmtree(RESULTS_PATH)
     # -----------------------------------------------------------------------------------------------------------    
     try:
         sys.stdout.close()
