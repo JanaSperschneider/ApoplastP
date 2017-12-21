@@ -420,6 +420,7 @@ def filterX(SEQUENCES):
     replaceZ = ['E', 'Q']
     replaceU = ['C']
     replaceX = ['A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G', 'H', 'I', 'L', 'K', 'M', 'F', 'P', 'S', 'T', 'W', 'Y', 'V']
+    replaceJ = ['I', 'L']
 
     random.seed(9001)   
 
@@ -427,7 +428,7 @@ def filterX(SEQUENCES):
     
     for sequence in SEQUENCES:
 
-        if 'B' in sequence or 'Z' in sequence or 'X' in sequence or 'U' in sequence:
+        if 'B' in sequence or 'Z' in sequence or 'X' in sequence or 'U' in sequence or 'J' in sequence:
 
             sequence_replaced = []
             for char in sequence:
@@ -435,6 +436,8 @@ def filterX(SEQUENCES):
                 char = char.replace('Z', random.choice(replaceZ))
                 char = char.replace('X', random.choice(replaceX))
                 char = char.replace('U', random.choice(replaceU))
+                char = char.replace('J', random.choice(replaceJ))
+
                 sequence_replaced += char
             sequence_replaced = "".join(sequence_replaced)
 
