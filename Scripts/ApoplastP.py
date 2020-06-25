@@ -1,4 +1,4 @@
-#! /usr/bin/python
+#!/usr/bin/env python3
 """
     ApoplastP: prediction of effectors and plant proteins in the apoplast using machine learning
     Copyright (C) 2017-2018 Jana Sperschneider	
@@ -34,7 +34,7 @@ import tempfile
 # -----------------------------------------------------------------------------------------------------------
 # -----------------------------------------------------------------------------------------------------------
 # -----------------------------------------------------------------------------------------------------------
-if __name__ == '__main__': 
+def main():
     SCRIPT_PATH = sys.path[0]
     # Change the path to WEKA to the appropriate location on your computer
     WEKA_PATH = SCRIPT_PATH + '/weka-3-8-1/weka.jar'
@@ -43,20 +43,20 @@ if __name__ == '__main__':
     # Check that the path to the WEKA software exists
     path_exists = os.access(WEKA_PATH, os.F_OK)
     if not path_exists:
-        print
-        print "Path to WEKA software does not exist!"
-        print "Check the installation and the given path to the WEKA software %s in ApoplastP.py (line 40)."%WEKA_PATH
-        print
-        sys.exit()
+        print()
+        print("Path to WEKA software does not exist!")
+        print("Check the installation and the given path to the WEKA software %s in ApoplastP.py (line 40)." % WEKA_PATH)
+        print()
+        sys.exit(1)
     # -----------------------------------------------------------------------------------------------------------
     # Check that the path to the EMBOSS software exists for pepstats
     path_exists = os.access(PEPSTATS_PATH, os.F_OK)
     if not path_exists:
-        print
-        print "Path to EMBOSS software does not exist!"
-        print "Check the installation and the given path to the EMBOSS software %s in ApoplastP.py (line 41)."%PEPSTATS_PATH
-        print
-        sys.exit()
+        print()
+        print("Path to EMBOSS software does not exist!")
+        print("Check the installation and the given path to the EMBOSS software %s in ApoplastP.py (line 41)."%PEPSTATS_PATH)
+        print()
+        sys.exit(1)
     # -----------------------------------------------------------------------------------------------------------
     commandline = sys.argv[1:]
     # -----------------------------------------------------------------------------------------------------------
@@ -64,8 +64,8 @@ if __name__ == '__main__':
         FASTA_FILE, short_format, output_file,  apoplast_output, nonapoplast_output, prob_threshold = functions.scan_arguments(commandline)
 	# If no FASTA file was provided with the -i option
         if not FASTA_FILE:
-            print
-            print 'Please specify a FASTA input file using the -i option!'
+            print()
+            print('Please specify a FASTA input file using the -i option!')
             functions.usage()
     else:
         functions.usage()
@@ -76,10 +76,10 @@ if __name__ == '__main__':
     # Check if FASTA file exists
     try:
         open(FASTA_FILE, 'r') 
-    except IOError as (errno, strerror):
-        print "Unable to open FASTA file:", FASTA_FILE  #Does not exist OR no read permissions
-        print "I/O error({0}): {1}".format(errno, strerror)
-        sys.exit()
+    except OSError as e:
+        print("Unable to open FASTA file:", FASTA_FILE)  #Does not exist OR no read permissions
+        print("I/O error({0}): {1}".format(e.errno, e.strerror))
+        sys.exit(1)
     # -----------------------------------------------------------------------------------------------------------
     # Try to create folder where results will be stored
     try:
@@ -92,11 +92,11 @@ if __name__ == '__main__':
     ORIGINAL_IDENTIFIERS, SEQUENCES = functions.get_seqs_ids_fasta(FASTA_FILE)
     SEQUENCES = [seq.upper() for seq in SEQUENCES]
     # -----------------------------------------------------------------------------------------------------------
-    print '-----------------'
-    print 
-    print "ApoplastP is running for", len(ORIGINAL_IDENTIFIERS), "proteins given in FASTA file", FASTA_FILE
-    print
-    print '-----------------'
+    print('-----------------')
+    print()
+    print("ApoplastP is running for", len(ORIGINAL_IDENTIFIERS), "proteins given in FASTA file", FASTA_FILE)
+    print()
+    print('-----------------')
     # -----------------------------------------------------------------------------------------------------------
     # Replace ambiguous amino acids for ProtParam
     ORIGINAL_SEQUENCES = SEQUENCES
@@ -123,8 +123,8 @@ if __name__ == '__main__':
             sys.exit()
     except:
         e = sys.exc_info()[1]
-        print "Error calling pepstats: %s" % e
-        sys.exit()
+        print("Error calling pepstats: %s" % e)
+        sys.exit(1)
     # -----------------------------------------------------------------------------------------------------------
     # Parse pepstats file
     pepstats_dic = functions.pepstats(SHORT_IDENTIFIERS, SEQUENCES, RESULTS_PATH + 'pepstats.out')
@@ -149,11 +149,11 @@ if __name__ == '__main__':
             if cstdout:
                 pass
             elif cstderr:
-                sys.exit()
+                sys.exit(1)
         except:
             e = sys.exc_info()[1]
-            print "Error calling WEKA: %s" % e
-            sys.exit()
+            print("Error calling WEKA: %s" % e)
+            sys.exit(1)
     # -----------------------------------------------------------------------------------------------------------
     # Parse the WEKA output file
     file_input = RESULTS_PATH + 'APOPLAST_Predictions.txt'
@@ -169,17 +169,17 @@ if __name__ == '__main__':
             # If the user wants to see the long format, output additional information and stats
             else:
                 out.writelines(functions.short_output(predictions))
-                out.writelines(functions.long_output(ORIGINAL_IDENTIFIERS, predicted_apoplast))                
-        print 'ApoplastP results were saved to output file:', output_file  
+                out.writelines(functions.long_output(ORIGINAL_IDENTIFIERS, predicted_apoplast)) 
+        print('ApoplastP results were saved to output file:', output_file)
 
     else:
         # Short format: output predictions for all proteins as tab-delimited table to stdout
         if short_format:
-            print functions.short_output(predictions)
+            print(functions.short_output(predictions))
         # If the user wants to see the long format, output additional information and stats
         else:
-            print functions.short_output(predictions)
-            print functions.long_output(ORIGINAL_IDENTIFIERS, predicted_apoplast)
+            print(functions.short_output(predictions))
+            print(functions.long_output(ORIGINAL_IDENTIFIERS, predicted_apoplast))
     # -----------------------------------------------------------------------------------------------------------
     # If the user additionally wants to save the predicted apoplastic proteins in a provided FASTA file
     if apoplast_output:
@@ -208,3 +208,6 @@ if __name__ == '__main__':
     # -----------------------------------------------------------------------------------------------------------
     # -----------------------------------------------------------------------------------------------------------
     # -----------------------------------------------------------------------------------------------------------    
+
+if __name__ == '__main__':
+    main()

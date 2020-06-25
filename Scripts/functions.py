@@ -20,31 +20,31 @@ def usage():
     
         Return:   Print options for running ApoplastP.       
     """
-    print '''
+    print('''
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # ApoplastP :: prediction of effectors and plant proteins in the apoplast using machine learning
 # ApoplastP 1.0 (July 2017); http://apoplastp.csiro.au/
 # Copyright (C) 2017-2018 Jana Sperschneider, CSIRO.
 # Freely distributed under the GNU General Public License (GPLv3).
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    '''
-    print "Usage for ApoplastP: ", 
-    print "python ApoplastP.py [-options] -i <input_file>"
-    print 
-    print "where basic options are:"
-    print "-h : show brief help on version and usage" 
-    print 
-    print "options for output format:"
-    print "-s : short output format that provides predictions for all proteins as one tab-delimited table [default long format]"
-    print
-    print "options directing output:"
-    print "-o <f> : direct output to file <f>, not stdout"
-    print "-A <f> : save predicted apoplastic proteins to FASTA file <f>"        
-    print "-N <f> : save predicted non-apoplastic proteins to FASTA file <f>"
-    print "-p <P> : only output predicted apoplastic proteins with probability >= P (default >= 0.55)"        
-    print
-    print "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"
-    print
+    ''')
+    print("Usage for ApoplastP:")
+    print("python ApoplastP.py [-options] -i <input_file>")
+    print()
+    print("where basic options are:")
+    print("-h : show brief help on version and usage")
+    print()
+    print("options for output format:")
+    print("-s : short output format that provides predictions for all proteins as one tab-delimited table [default long format]")
+    print()
+    print("options directing output:")
+    print("-o <f> : direct output to file <f>, not stdout")
+    print("-A <f> : save predicted apoplastic proteins to FASTA file <f>")
+    print("-N <f> : save predicted non-apoplastic proteins to FASTA file <f>")
+    print("-p <P> : only output predicted apoplastic proteins with probability >= P (default >= 0.55)")
+    print()
+    print("# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -")
+    print()
     sys.exit()    
 
     return
@@ -62,7 +62,7 @@ def scan_arguments(commandline):
         opts, args = getopt.getopt(commandline, "hso:A:N:i:p:", ["help"])        
     except getopt.GetoptError as err:
         # print help information and exit:
-        print str(err) # will print something like "option -a not recognized"
+        print(str(err)) # will print something like "option -a not recognized"
         usage()
         sys.exit(2)
 
@@ -102,13 +102,13 @@ def scan_arguments(commandline):
             try:
                 prob_threshold = float(prob_threshold)
             except:
-                print 
-                print 'Error! Provide a number between 0.5 and 1 as probability threshold.'
+                print()
+                print('Error! Provide a number between 0.5 and 1 as probability threshold.')
                 usage()
 
             if prob_threshold < 0.5 or prob_threshold > 1:
-                print 
-                print 'Error! Provide a number between 0.5 and 1 as probability threshold.'
+                print()
+                print('Error! Provide a number between 0.5 and 1 as probability threshold.')
                 usage()
 
             p_count += 1
@@ -371,9 +371,9 @@ def pepstats(SHORT_IDENTIFIERS, SEQUENCES, pepstats_file):
                     pepstats_dic[TARGET_ID] = molecular_weight, charge, isoelectric, amino_acid_classes, amino_acid_frequencies, length
 
                 else:
-                    print 'There was an error scanning the pepstats file.'
-                    print 'Could not find corresponding sequence for identifier', TARGET_ID
-                    sys.exit()
+                    print('There was an error scanning the pepstats file.')
+                    print('Could not find corresponding sequence for identifier', TARGET_ID)
+                    sys.exit(1)
 
     return pepstats_dic
 # -----------------------------------------------------------------------------------------------------------
@@ -459,7 +459,7 @@ def write_weka_input(weka_input, SHORT_IDENTIFIERS, SEQUENCES, pepstats_dic):
     """   
     with open(weka_input, 'w') as f:
         # Create a list of features for each protein
-        X = [[] for __ in xrange(len(SHORT_IDENTIFIERS))]
+        X = [[] for __ in range(len(SHORT_IDENTIFIERS))]
 
         for protein_position, (TARGET_ID, sequence) in enumerate(zip(SHORT_IDENTIFIERS, SEQUENCES)):
             TARGET_ID = TARGET_ID.replace('>', '')
