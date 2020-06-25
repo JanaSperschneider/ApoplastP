@@ -11,15 +11,68 @@ ApoplastP is not a tool for secretome prediction.
 
 ApoplastP has been trained to predict proteins that localize to the plant apoplast, so please submit a FASTA file of secreted proteins to test if they are predicted apoplastic proteins. It is recommended to use tools such as SignalP or Phobius	to predict first if a protein is likely to be secreted. Alternatively, experimentally determined secretomes (e.g. apoplastic proteomics) instead of computationally predicted secretomes can be submitted to ApoplastP to discover unconventionally secreted proteins that localize to the apoplast. 
 
+#### Installing ApoplastP
+
+You can submit your proteins of interest to the webserver at http://apoplastp.csiro.au/ or install it locally.
+All training and evaluation data can be found [here](http://apoplastp.csiro.au/data.html).
+
+ApoplastP has been written in Python and uses pepstats from the EMBOSS software and the WEKA 3.6 software. It also requires that you have BioPython installed. **ApoplastP from version 1.0.2 inclusive uses Python 3.** 
+
+To get ApoplastP to work on your local machine, you need to install the EMBOSS and WEKA 3.8.1 softwares from source. Both are already provided in the ApoplastP distribution to ensure that compatible versions are used. 
+
+0. Download the latest release from this github repo (or alternatively you can clone the github repo and skip step 1).
+
+1. Make sure ApoplastP has the permission to execute. Then unpack LOCALIZER in your desired location
+```
+tar xvf ApoplastP_1.0.2.tar.gz
+chmod -R 755 ApoplastP_1.0.2/
+cd ApoplastP_1.0.2
+```
+
+2. For the EMBOSS installation, you need to switch to the Scripts directory and unpack, configure and make. Alternatively, if you are on a computer cluster and EMBOSS is already installed, you can change the variable PEPSTATS_PATH in the ApoplastP.py script to the EMBOSS directory that contains pepstats on the machine you are using.
+```
+cd Scripts
+tar xvf emboss-latest.tar.gz
+cd EMBOSS-6.5.7/
+./configure
+make
+cd ../ 
+```
+
+3. For WEKA, you need to simply unzip the file unzip weka-3-8-1.zip
+```
+unzip weka-3-8-1.zip
+```
+If you are having troube installing EMBOSS, please see [here](http://emboss.sourceforge.net/download/) for help.
+If you are having troube installing WEKA, please see [here](https://www.cs.waikato.ac.nz/~ml/weka/index.html) for help. 
+
+4. Test if ApoplastP is working
+```
+python ApoplastP.py -i Testing.fasta
+```
+
+5. Problems?
+
+If you are getting an error message like 'ImportError: No module named Bio', you need to install BioPython on your computer. See [here](https://biopython.org/wiki/Download) for help. For example, you can try and run:
+```
+pip install biopython
+```
+
+#### ApoplastP output format
+
+Run this to get a feel for the output format:
+```
+python ApoplastP.py -i Testing.fasta
+
+
+```
+
+ApoplastP will return the output as shown in the example above. First, it will return the predicted apoplastic proteins in your set as FASTA sequences, if there are any. Second, a summary table will be shown which shows the predictions (apoplastic or non-apoplastic) for each submitted protein.
+
+ApoplastP returns a probability that a tested instance will belong to either the apoplastic or non-apoplastic class and these probabilities are included in the web server output as additional information to researchers.
+
+We deliberately did not recommend a probability threshold over which a protein would be classified as an apoplastic protein candidate, as we believe it should remain up to the individual user to interpret their results in the context of additional resources available. For example, a researcher might like to predict the full apoplastic candidate list and overlay this with in planta expression data to prioritize candidates, whereas in other situations without additional information a list of high-priority candidates as determined by the ApoplastP probabilities might be more appropriate. 
+
 #### Citation for ApoplastP:
 
 Sperschneider J et al. (2017) ApoplastP: prediction of effectors and plant proteins in the apoplast using machine learning. New Phytologist. doi:10.1111/nph.14946. 
-
-#### Running ApoplastP
-
-You can submit proteins to the webserver at http://apoplastp.csiro.au/.
-
-Alternatively, you can install ApoplastP on your machine to run it locally.
-For detailed installation instructions see here: http://apoplastp.csiro.au/software.html
-
-For help on how to interpret the output format, see http://apoplastp.csiro.au/output.html
