@@ -162,7 +162,7 @@ def main():
     # If user wants the stdout output directed to a specified file
     if output_file:
 
-        with open(output_file, 'wb') as out:
+        with open(output_file, 'w') as out:
             # Short format: output predictions for all proteins as tab-delimited table
             if short_format:
                 out.writelines(functions.short_output(predictions))
